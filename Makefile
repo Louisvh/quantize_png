@@ -1,6 +1,6 @@
 CC      = gcc
-CFLAGS  = -Wall -Wextra -std=c99 -O2
-LDFLAGS = -lpng
+CFLAGS  = -Wall -Wextra -std=c99 -O2 -fopenmp
+LDFLAGS = -lpng -fopenmp
 TARGET  = png_to_jasc
 
 all: $(TARGET)

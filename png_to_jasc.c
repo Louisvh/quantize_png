@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <png.h>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 typedef struct {
     int r, g, b;
@@ -50,7 +53,7 @@ int main(int argc, char **argv) {
     int bit_depth = 8;
     int max_colors = 256;
     int skip = 0;
-    int preselect_count = -1;
+    int preselect = 1;
 
     int i = 1;
     while (i < argc && argv[i][0] == '-') {
@@ -73,8 +76,8 @@ int main(int argc, char **argv) {
                 return 1;
             }
         } else if (!strcmp(argv[i], "-p") && i + 1 < argc) {
-            preselect_count = atoi(argv[++i]);
-            if (preselect_count < 0) {
+            preselect = atoi(argv[++i]);
+            if (preselect < 0) {
                 fprintf(stderr, "expected preselect >= 0\n");
                 return 1;
             }
@@ -86,7 +89,7 @@ int main(int argc, char **argv) {
 
     if (argc - i != 2) {
         fprintf(stderr,
-            "usage: %s [-b bits (default: 8)] [-n max_entries (default: 256, 0=inf)] [-s skip (for >0, cyan entries are pre-pended)] [-p preselected_colours (default: 2/3 of palette)] input.png output.pal\n",
+            "usage: %s [-b bits (default: 8)] [-n max_entries (default: 256, 0=inf)] [-s skip (for >0, cyan entries are pre-pended)] [-p preselected_colours (default: 1)] input.png output.pal\n",
             argv[0]);
         return 1;
     }
@@ -126,56 +129,111 @@ int main(int argc, char **argv) {
     png_read_update_info(png, info);
     int channels = png_get_channels(png, info);
 
-    png_bytep row = malloc(png_get_rowbytes(png, info));
-    if (!row) die("malloc row");
-
-    size_t cap = 1024, size = 0;
-    Color *table = malloc(cap * sizeof(Color));
-    if (!table) die("malloc table");
-
-    fprintf(stderr, "processing %d pixels\n", w * h);
-    if (w * h > 1024 * 1024) {
-        fprintf(stderr, "Progress: --------------------");
-        fflush(stderr);
-    }
+    size_t row_bytes = png_get_rowbytes(png, info);
+    png_bytep *rows = malloc(h * sizeof(png_bytep));
+    if (!rows) die("malloc rows");
     for (int y = 0; y < h; y++) {
-        if (h > 1024 && (y+1) % (h / 20) == 0) {
-            int progress = ((y+1) * 20) / h;
-            fprintf(stderr, "\rProgress: ");
-            for (int i = 0; i < 20; i++) {
-                fprintf(stderr, i < progress ? "+" : "-");
-            }
-            fflush(stderr);
-        }
-        png_read_row(png, row, NULL);
+        rows[y] = malloc(row_bytes);
+        if (!rows[y]) die("malloc row");
+        png_read_row(png, rows[y], NULL);
+    }
+
+    png_destroy_read_struct(&png, &info, NULL);
+    fclose(fp);
+
+#ifdef _OPENMP
+    int num_threads = omp_get_max_threads();
+    fprintf(stderr, "using %d threads\n", num_threads);
+#else
+    int num_threads = 1;
+#endif
+
+    Color **thread_tables = malloc(num_threads * sizeof(Color*));
+    size_t *thread_sizes = calloc(num_threads, sizeof(size_t));
+    size_t *thread_caps = malloc(num_threads * sizeof(size_t));
+    
+    for (int t = 0; t < num_threads; t++) {
+        thread_caps[t] = 1024;
+        thread_tables[t] = malloc(thread_caps[t] * sizeof(Color));
+        if (!thread_tables[t]) die("malloc thread table");
+    }
+
+#ifdef _OPENMP
+    #pragma omp parallel for schedule(dynamic, 16)
+#endif
+    for (int y = 0; y < h; y++) {
+#ifdef _OPENMP
+        int tid = omp_get_thread_num();
+#else
+        int tid = 0;
+#endif
+
+        Color *table = thread_tables[tid];
+        size_t *size = &thread_sizes[tid];
+        size_t *cap = &thread_caps[tid];
+
         for (int x = 0; x < w; x++) {
-            png_bytep px = &row[x * channels];
+            png_bytep px = &rows[y][x * channels];
             int r = px[0] >> (8 - bit_depth);
             int g = px[1] >> (8 - bit_depth);
             int b = px[2] >> (8 - bit_depth);
 
             size_t j;
-            for (j = 0; j < size; j++) {
+            for (j = 0; j < *size; j++) {
                 if (table[j].r == r && table[j].g == g && table[j].b == b) {
                     table[j].count++;
                     break;
                 }
             }
+            
+            if (j == *size) {
+                if (*size == *cap) {
+                    *cap *= 2;
+                    table = realloc(table, *cap * sizeof(Color));
+                    if (!table) die("realloc thread table");
+                    thread_tables[tid] = table;
+                }
+                table[(*size)++] = (Color){ r, g, b, 1 };
+            }
+        }
+    }
+
+    for (int y = 0; y < h; y++) {
+        free(rows[y]);
+    }
+    free(rows);
+
+    size_t cap = 8192, size = 0;
+    Color *table = malloc(cap * sizeof(Color));
+    if (!table) die("malloc final table");
+
+    for (int t = 0; t < num_threads; t++) {
+        for (size_t i = 0; i < thread_sizes[t]; i++) {
+            Color *c = &thread_tables[t][i];
+            
+            size_t j;
+            for (j = 0; j < size; j++) {
+                if (table[j].r == c->r && table[j].g == c->g && table[j].b == c->b) {
+                    table[j].count += c->count;
+                    break;
+                }
+            }
+            
             if (j == size) {
                 if (size == cap) {
                     cap *= 2;
                     table = realloc(table, cap * sizeof(Color));
-                    if (!table) die("realloc table");
+                    if (!table) die("realloc final table");
                 }
-                table[size++] = (Color){ r, g, b, 1 };
+                table[size++] = *c;
             }
         }
+        free(thread_tables[t]);
     }
-    if (h > 1024) fprintf(stderr, "\n");
-
-    png_destroy_read_struct(&png, &info, NULL);
-    fclose(fp);
-    free(row);
+    
+    free(thread_tables);
+    free(thread_sizes);
+    free(thread_caps);
 
     qsort(table, size, sizeof(Color), cmp_color);
 
@@ -184,7 +242,6 @@ int main(int argc, char **argv) {
     if (constructed_pal_len < 1) die("pal length - skip must be >= 1");
     if (constructed_pal_len > (int)size) constructed_pal_len = (int)size;
 
-    int preselect = preselect_count >= 0 ? preselect_count : (2 * constructed_pal_len) / 3;
     if (preselect < 1) preselect = 1;
     if (preselect > constructed_pal_len) preselect = constructed_pal_len;
 
