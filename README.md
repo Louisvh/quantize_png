@@ -26,17 +26,21 @@ Options:
     -n max_colors (default: 256)
     -s skip_slots; preceding slots filled with cyan (default: 0)
     -p preselect (slots purely selected by pixel frequency, default: 1)
+    -v (print selected color and cost information)
 
 e.g.
 
-    > png_to_jasc -b 4 -n 8 -s 1 example.png result.pal
-    selected 2/8: #03,02,05 (count: 4148)
-    selected 3/8: #05,09,08 (count: 1800, cost: 39600)
-    selected 4/8: #12,05,03 (count: 688, cost: 15136)
-    selected 5/8: #02,08,03 (count: 488, cost: 8296)
-    selected 6/8: #02,02,03 (count: 1080, cost: 7560)
-    selected 7/8: #08,02,03 (count: 484, cost: 7260)
-    selected 8/8: #03,05,07 (count: 516, cost: 5676)
+    > png_to_jasc -v -b 4 -n 8 -s 1 example.png result.pal
+    using 12 threads
+        1: #0,15,15
+        2: #3,2,5 (count: 4148)
+        3: #5,9,8 (count: 1800, cost: 39600)
+        4: #12,5,3 (count: 688, cost: 15136)
+        5: #2,8,3 (count: 488, cost: 8296)
+        6: #2,2,3 (count: 1080, cost: 7560)
+        7: #8,2,3 (count: 484, cost: 7260)
+        8: #3,5,7 (count: 516, cost: 5676)
+
 
     > cat result.pal
     JASC-PAL

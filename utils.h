@@ -23,6 +23,7 @@ typedef struct {
     int max_colors;
     int skip;
     int preselect;
+    int verbose;
 } PaletteConfig;
 
 void die(const char *msg);
@@ -31,7 +32,7 @@ void parse_arguments(int argc, char **argv, PaletteConfig *config, const char **
 
 png_bytep* read_png_image(const char *path, int *w, int *h, int *channels);
 
-Color* collect_colors(png_bytep *rows, int w, int h, int channels, int bit_depth, size_t *out_size);
+Color* collect_colors(png_bytep *rows, int w, int h, int channels, int bit_depth, size_t *out_size, int verbose);
 Color* build_palette(Color *all_colors, size_t num_colors, const PaletteConfig *config, int *out_pal_size);
 
 png_bytep* quantize_image(png_bytep *rows, int w, int h, int channels, int bit_depth, Color *palette, int pal_size);

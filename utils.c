@@ -48,6 +48,8 @@ void parse_arguments(int argc, char **argv, PaletteConfig *config, const char **
                 exit(1);
             }
             output_bit_depth_set = 1;
+        } else if (!strcmp(argv[i], "-v")) {
+            config->verbose = 1;
         } else {
             break;
         }
@@ -66,7 +68,8 @@ void parse_arguments(int argc, char **argv, PaletteConfig *config, const char **
              "\t -b bit_depth (logical, default: 8) \n \t -db output_bit_depth (default: =bit_depth) \n"
              "\t -n max_colors (default: 256) \n"
              "\t -s skip_slots; preceding slots filled with cyan (default: 0) \n"
-             "\t -p preselect (slots purely selected by pixel frequency, default: 1)\n", argv[0]);
+             "\t -p preselect (slots purely selected by pixel frequency, default: 1)\n"
+             "\t -v verbose (print selected color and cost information)\n", argv[0]);
         exit(1);
     }
 
@@ -117,10 +120,10 @@ static int find_closest_color(int r, int g, int b, Color *palette, int pal_size)
     return best_idx;
 }
 
-Color* collect_colors(png_bytep *rows, int w, int h, int channels, int bit_depth, size_t *out_size) {
+Color* collect_colors(png_bytep *rows, int w, int h, int channels, int bit_depth, size_t *out_size, int verbose) {
 #ifdef _OPENMP
     int num_threads = omp_get_max_threads();
-    fprintf(stderr, "using %d threads\n", num_threads);
+    if (verbose) fprintf(stderr, "using %d threads\n", num_threads);
 #else
     int num_threads = 1;
 #endif
@@ -189,22 +192,28 @@ Color* build_palette(Color *all_colors, size_t num_colors, const PaletteConfig *
     if (preselect < 1) preselect = 1;
     if (preselect > constructed_pal_len) preselect = constructed_pal_len;
 
-    Color *selected = malloc(constructed_pal_len * sizeof(Color));
+    Color *selected = malloc(full_pal_len * sizeof(Color));
+    Color cyan = {0, 255 >> (8 - config->bit_depth), 255 >> (8 - config->bit_depth), 0};
     int selected_count = 0;
 
-    for (int i = 0; i < preselect; i++) {
+    int i;
+    for (i = 0; i < config->skip; i++) {
+        selected[selected_count++] = cyan;
+        if (config->verbose)
+            fprintf(stderr, " %3d: #%d,%d,%d\n", selected_count, cyan.r, cyan.g, cyan.b);
+    }
+    for (i = 0; i < preselect; i++) {
         selected[selected_count++] = all_colors[i];
-        fprintf(stderr, config->bit_depth < 7 ?
-        "selected %d/%d: #%02d,%02d,%02d (count: %d)\n" :
-        "selected %d/%d: #%03d,%03d,%03d (count: %d)\n",
-        i+1+config->skip, full_pal_len, all_colors[i].r, all_colors[i].g, all_colors[i].b, all_colors[i].count);
+        if (config->verbose)
+            fprintf(stderr, " %3d: #%d,%d,%d (count: %d)\n",
+            selected_count, all_colors[i].r, all_colors[i].g, all_colors[i].b, all_colors[i].count);
     }
 
     char *used = calloc(num_colors, 1);
     for (int i = 0; i < preselect; i++)
         used[i] = 1;
 
-    while (selected_count < constructed_pal_len) {
+    while (selected_count < constructed_pal_len + config->skip) {
         int highest_cost = -1;
         int best_candidate_idx = -1;
 
@@ -225,15 +234,15 @@ Color* build_palette(Color *all_colors, size_t num_colors, const PaletteConfig *
         used[best_candidate_idx] = 1;
         selected[selected_count++] = all_colors[best_candidate_idx];
         
-        fprintf(stderr, config->bit_depth < 7 ?
-                "selected %d/%d: #%02d,%02d,%02d (count: %d, cost: %d)\n" :
-                "selected %d/%d: #%03d,%03d,%03d (count: %d, cost: %d)\n",
-                selected_count + config->skip, full_pal_len,
-                selected[selected_count - 1].r,
-                selected[selected_count - 1].g,
-                selected[selected_count - 1].b,
-                selected[selected_count - 1].count, highest_cost);
-        fflush(stderr);
+        if (config->verbose) {
+            fprintf(stderr, " %3d: #%d,%d,%d (count: %d, cost: %d)\n",
+                    selected_count,
+                    selected[selected_count - 1].r,
+                    selected[selected_count - 1].g,
+                    selected[selected_count - 1].b,
+                    selected[selected_count - 1].count, highest_cost);
+            fflush(stderr);
+        }
     }
 
     free(used);
@@ -411,9 +420,6 @@ void write_jasc_palette(const char *path, Color *palette, int pal_size, const Pa
     int max_value = (1 << config->output_bit_depth) - 1;
     
     fprintf(out, "JASC-PAL\n0100\n%d\n", full_pal_len);
-
-    for (int k = 0; k < config->skip && k < full_pal_len; k++)
-        fprintf(out, "0 %d %d\n", max_value, max_value);
 
     int written = 0;
     for (int k = 0; k < pal_size; k++, written++)

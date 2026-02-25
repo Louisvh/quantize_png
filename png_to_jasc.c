@@ -6,7 +6,8 @@ int main(int argc, char **argv) {
         .output_bit_depth = 8,
         .max_colors = 256,
         .skip = 0,
-        .preselect = 1
+        .preselect = 1,
+        .verbose = 0
     };
     
     const char *in_path, *out_path;
@@ -16,7 +17,7 @@ int main(int argc, char **argv) {
     png_bytep *rows = read_png_image(in_path, &w, &h, &channels);
 
     size_t num_colors;
-    Color *all_colors = collect_colors(rows, w, h, channels, config.bit_depth, &num_colors);
+    Color *all_colors = collect_colors(rows, w, h, channels, config.bit_depth, &num_colors, config.verbose);
 
     for (int y = 0; y < h; y++) {
         free(rows[y]);
