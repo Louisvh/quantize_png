@@ -1,5 +1,7 @@
 # quantize_png & png_to_jasc
 
+![](example.png) __→__ ![](example_quant.png)
+
 This is a very simple tool to quantize PNGs to a specific bit depth and palette size, with an option to skip a number
 of palette entries. This can be useful for e.g. retro console programming, where the first palette entry may be hardwired to transparancy. If you found this repository looking for a general-purpose tool to quantize png images, you're likely better off with [pngquant](https://pngquant.org).
 
@@ -27,7 +29,6 @@ Options:
 
 e.g.
 
-    > quantize_png -b 4 -db 8 -n 8 -s 1 example.png example_quant.png
     > png_to_jasc -b 4 -n 8 -s 1 example.png result.pal
     selected 2/8: #03,02,05 (count: 4148)
     selected 3/8: #05,09,08 (count: 1800, cost: 39600)
@@ -36,8 +37,6 @@ e.g.
     selected 6/8: #02,02,03 (count: 1080, cost: 7560)
     selected 7/8: #08,02,03 (count: 484, cost: 7260)
     selected 8/8: #03,05,07 (count: 516, cost: 5676)
-
-![](example.png) __→__ ![](example_quant.png)
 
     > cat result.pal
     JASC-PAL
@@ -51,6 +50,13 @@ e.g.
     2 2 3
     8 2 3
     3 5 7
+
+or 
+
+    > quantize_png -b 4 -db 8 -n 8 -s 1 example.png example_quant.png
+
+![](example.png) __→__ ![](example_quant.png)
+
 
 
 
