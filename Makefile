@@ -1,14 +1,20 @@
 CC      = gcc
 CFLAGS  = -Wall -Wextra -std=c99 -O2 -fopenmp
 LDFLAGS = -lpng -fopenmp
-TARGET  = png_to_jasc
+TARGETS = png_to_jasc quantize_png
 
-all: $(TARGET)
+all: $(TARGETS)
 
-$(TARGET): png_to_jasc.c
+utils.o: utils.c utils.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+png_to_jasc: png_to_jasc.c utils.o
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+quantize_png: quantize_png.c utils.o
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 clean:
-	rm -f $(TARGET)
+	rm -f $(TARGETS) utils.o
 
 .PHONY: all clean

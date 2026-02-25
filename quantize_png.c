@@ -18,18 +18,25 @@ int main(int argc, char **argv) {
     size_t num_colors;
     Color *all_colors = collect_colors(rows, w, h, channels, config.bit_depth, &num_colors);
 
-    for (int y = 0; y < h; y++) {
-        free(rows[y]);
-    }
-    free(rows);
-
     int palette_size;
     Color *palette = build_palette(all_colors, num_colors, &config, &palette_size);
     free(all_colors);
 
+    png_bytep *index_rows = quantize_image(rows, w, h, channels, config.bit_depth, palette, palette_size);
+    
+    for (int y = 0;y < h; y++) {
+        free(rows[y]);
+    }
+    free(rows);
+
     convert_palette_depth(palette, palette_size, config.bit_depth, config.output_bit_depth);
-    write_jasc_palette(out_path, palette, palette_size, &config);
+    write_palette_png(out_path, w, h, palette, palette_size, index_rows);
+    
     free(palette);
+    for (int y = 0; y < h; y++) {
+        free(index_rows[y]);
+    }
+    free(index_rows);
 
     return 0;
 }
