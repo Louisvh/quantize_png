@@ -197,7 +197,7 @@ Color* build_palette(Color *all_colors, size_t num_colors, const PaletteConfig *
         fprintf(stderr, config->bit_depth < 7 ?
         "selected %d/%d: #%02d,%02d,%02d (count: %d)\n" :
         "selected %d/%d: #%03d,%03d,%03d (count: %d)\n",
-        i+1, full_pal_len, all_colors[i].r, all_colors[i].g, all_colors[i].b, all_colors[i].count);
+        i+1+config->skip, full_pal_len, all_colors[i].r, all_colors[i].g, all_colors[i].b, all_colors[i].count);
     }
 
     char *used = calloc(num_colors, 1);
