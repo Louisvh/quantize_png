@@ -33,36 +33,34 @@ e.g.
     > png_to_jasc -v -b 4 -n 8 -s 1 example.png result.pal
     using 12 threads
         1: #0,15,15
-        2: #3,2,5 (count: 4148)
-        3: #5,9,8 (count: 1800, cost: 39600)
-        4: #12,5,3 (count: 688, cost: 15136)
-        5: #2,8,3 (count: 488, cost: 8296)
-        6: #2,2,3 (count: 1080, cost: 7560)
-        7: #8,2,3 (count: 484, cost: 7260)
-        8: #3,5,7 (count: 516, cost: 5676)
-
-
-    > cat result.pal
-    JASC-PAL
-    0100
-    8
-    0 15 15
-    3 2 5
-    5 9 8
-    12 5 3
-    2 8 3
-    2 2 3
-    8 2 3
-    3 5 7
+        2: #0,0,0 (count: 6951)
+        3: #8,7,6 (count: 111, cost: 2775)
+        4: #4,4,3 (count: 91, cost: 1092)
+        5: #13,12,11 (count: 61, cost: 915)
+        6: #10,10,9 (count: 81, cost: 729)
+        7: #10,8,7 (count: 81, cost: 486)
+        8: #8,8,8 (count: 60, cost: 420)
 
 or 
 
-    > quantize_png -b 4 -db 8 -n 8 -s 1 example.png example_quant.png
+    > quantize_png -b 5 -db 8 -n 16 -s 1 example.png example_quant.png
 
 ![](example.png) __→__ ![](example_quant.png)
 
 
+# Speed
 
+The code here isn't very efficient, but thankfully, inefficient C code is still pretty fast. On a i5-1335U laptop, it'll churn through a few million pixels per second; processing UHD images takes a few seconds:
 
+    > time-wall quantize_png -b 5 -db 8 -n 16 -s 1 esa_jupiter_large.png result.png
 
+    provided image has 80000000 pixels, this may take a while...
+    
+    Elapsed time (min:sec) 0:05.97
 
+    > identify esa_jupiter_large.png result.png 
+    esa_jupiter_large.png PNG 10000x8000 8-bit sRGB 16.7784MiB
+    result.png PNG 10000x8000 8-bit sRGB 16c 1.22251MiB
+
+    
+By default, the code tries to distribute the processing across the available cores. You can disable that by setting OMP_NUM_THREADS to 1.
